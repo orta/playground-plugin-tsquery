@@ -17,8 +17,10 @@ export const el = (str: string, el: string, container: Element) => {
 
 /** Renderers a TypeScript AST */
 export const renderAST = (parent: HTMLElement, node: Node) => {
+
+  
   const renderItem = (parentElement: Element, node: Node) => {
-    const ul =  document.createElement("ul")
+    const ul = document.createElement("ul")
     ul.className = "ast-tree"
 
     const li = document.createElement("li")
@@ -44,26 +46,25 @@ export const renderAST = (parent: HTMLElement, node: Node) => {
 
   renderItem(parent, node)
 
+  // const tree = document.querySelectorAll("ul.ast-tree a:not(:last-child)");
+  // for (var i = 0; i < tree.length; i++) {
+  //   tree[i].addEventListener("click", function(e: MouseEvent) {
 
-  const tree = document.querySelectorAll("ul.ast-tree a:not(:last-child)");
-  for (var i = 0; i < tree.length; i++) {
-    tree[i].addEventListener("click", function(e: MouseEvent) {
-
-      // @ts-ignore
-      const parent = e.target.parentElement;
-      const classList = parent.classList;
+  //     // @ts-ignore
+  //     const parent = e.target.parentElement;
+  //     const classList = parent.classList;
       
-      if (classList.contains("open")) {
-        classList.remove("open");
-        var opensubs = parent.querySelectorAll(":scope .open");
+  //     if (classList.contains("open")) {
+  //       classList.remove("open");
+  //       var opensubs = parent.querySelectorAll(":scope .open");
 
-        for (var i = 0; i < opensubs.length; i++) {
-          opensubs[i].classList.remove("open");
-        }
-      } else {
-        classList.add("open");
-      }
-      e.preventDefault();
-    });
-  }
+  //       for (var i = 0; i < opensubs.length; i++) {
+  //         opensubs[i].classList.remove("open");
+  //       }
+  //     } else {
+  //       classList.add("open");
+  //     }
+  //     e.preventDefault();
+  //   });
+  // }
 };

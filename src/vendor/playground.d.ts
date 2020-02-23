@@ -1,4 +1,5 @@
-declare type Sandbox = ReturnType<typeof import('./sandbox').createTypeScriptSandbox>;
+declare type Sandbox = import('./sandbox').Sandbox;
+export { PluginUtils } from './pluginUtils';
 export declare type PluginFactory = {
     (i: (key: string, components?: any) => string): PlaygroundPlugin;
 };
@@ -83,4 +84,3 @@ export declare const setupPlayground: (sandbox: {
     registerPlugin: (plugin: PlaygroundPlugin) => void;
 };
 export declare type Playground = ReturnType<typeof setupPlayground>;
-export {};
