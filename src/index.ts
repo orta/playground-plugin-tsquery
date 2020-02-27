@@ -2,138 +2,32 @@ import { tsquery } from "@phenomnomnominal/tsquery";
 import type { editor } from "monaco-editor";
 import type { Node } from "typescript";
 import {PlaygroundPlugin, PluginUtils} from "./vendor/playground"
-import { Sandbox } from "./vendor/sandbox";
-
-
-let astVersion = -1
-let ast:Node = undefined
-
-
-const createUtils = (sandbox: Sandbox) => {
-
-/** Use this to make a few dumb element generation funcs */
- const el = (str: string, el: string, container: Element) => {
-  const para = document.createElement(el);
-  para.innerHTML = str;
-  container.appendChild(para);
-};
-
-  const createASTTree = (node: Node) => {
-    const ts = sandbox.ts
-    const div = document.createElement('div')
-    div.className = "ast"
-
-
-  // MIT licensed from ts-ast-viewer
-  const getEnumFlagNames = (enumObj: any, flags: number) => {
-    const allFlags = Object.keys(enumObj)
-        .map(k => enumObj[k]).filter(v => typeof v === "number") as number[];
-
-    const matchedFlags = allFlags.filter(f => (f & flags) !== 0);
-
-    return matchedFlags
-        .filter((f, i) => matchedFlags.indexOf(f) === i)
-        .map(f => enumObj[f]);
-  }
-    
-
-    const infoForNode = (node: Node) => {
-      const whitelisted = ["pos"]
-      const name = ts.SyntaxKind[node.kind]
-      return {
-        name,
-      }
-    }
-
-    const renderLiteralField = (key: string, value: string) => {
-      const li = document.createElement('li')
-      li.innerHTML = `${key}: ${value}`
-      return li
-    }
-
-    const renderSingleChild = (key: string, value: Node) => {
-      const li = document.createElement('li')
-      li.innerHTML = `${key}: <strong>${ts.SyntaxKind[value.kind]}</strong>`
-      return li
-    }
-
-    const renderManyChildren = (key: string, value: Node[]) => {
-      const li = document.createElement('li')
-      const nodes = value.map(n => "<strong>&nbsp;&nbsp;" + ts.SyntaxKind[n.kind] + "<strong>").join("<br/>") 
-      li.innerHTML = `${key}: [<br/>${nodes}</br>]`
-      return li
-    }
-  
-    const renderItem = (parentElement: Element, node: Node) => {
-      const ul = document.createElement('ul')
-      parentElement.appendChild(ul)
-      ul.className = 'ast-tree'
-
-      const info = infoForNode(node)
-  
-      const li = document.createElement('li')
-      ul.appendChild(li)
-  
-      const a = document.createElement('a')
-      a.textContent = info.name 
-      li.appendChild(a)
-  
-      const properties = document.createElement('ul')
-      properties.className = 'ast-tree'
-      li.appendChild(properties)
-
-      Object.keys(node).forEach(field => {
-        if (typeof field === "function") return
-        if (field === "parent" || field === "flowNode") return
-
-        const value = node[field]
-        if (typeof value === "object" && Array.isArray(value) && "pos" in value[0] && "end" in value[0]) {
-          //  Is an array of Nodes
-          properties.appendChild(renderManyChildren(field, value))
-        } else if (typeof value === "object" && "pos" in value && "end" in value) {
-          // Is a single child property
-          properties.appendChild(renderSingleChild(field, value))
-        } else {
-          properties.appendChild(renderLiteralField(field, value))
-        }
-      })  
-    }
-  
-    renderItem(div, node)
-    return div
-  }
-
-  return {
-    createASTTree,
-    el
-  }
-}
-let utils: PluginUtils
-
 
 const pluginCreator = (utils: PluginUtils) => {
+
+  let astVersion = -1
+  let ast:Node = undefined
 
   const plugin: PlaygroundPlugin = {
     id: "tsquery",
     displayName: "TSQuery",
-    // data: {
-  
-    // },
-    didMount: (sandbox, container) => {
-      utils = createUtils(sandbox) as any
 
-      // @ts-ignore
+    didMount: (sandbox, container) => {
+      // @ts-ignore - so people can use the console to do tsquery also
       window.tsquery = tsquery;
+      console.log('New global:')
+      // @ts-ignore
+      console.log('\twindow.tsquery', window.tsquery)
   
+      // Add some info saying how to use it
       const p = (str: string) => utils.el(str, "p", container);
-      const h4 = (str: string) => utils.el(str, "h4", container);
+      p(`Use the textbox below to make a query, queries happen as you type. You can query using any TypeScript <a href='https://github.com/microsoft/TypeScript/blob/master/src/compiler/types.ts#L123' target='_blank'>AST SyntaxKind</a> type`);
   
-      h4("Using TSQuery");
-      p(`Create a gist with an <code>index.md</code> using a set of <code>---</code>s to split between slides. You can find out more about the syntax <a href="https://github.com/orta/playground-slides">here</a>. If you want to demo the slides, click here to try <a href="#" onclick='document.getElementById("gist-input").value = "https://gist.github.com/orta/d7dbd4cdb8d1f99c52871fb15db620bc"'>an existing deck</a>.`);
-  
-      const gistForm = createGistInputForm(sandbox);
-      container.appendChild(gistForm);
+      // Inject a form with an input to the container
+      const outerQueryForm = createQueryInputForm(sandbox);
+      container.appendChild(outerQueryForm);
       
+      // Create some elements to put the results in
       const resultMeta = document.createElement("p")
       resultMeta.id = "query-results-meta"
       container.appendChild(resultMeta)
@@ -142,40 +36,44 @@ const pluginCreator = (utils: PluginUtils) => {
       results.id = "query-results";
       container.appendChild(results);
   
+      // Because the query is stored between sessions, then you could
+      // have something we can run on launch
       const model = sandbox.editor.getModel()
       runQuery(sandbox, model)
     },
   
+    // When we get told about an update to the monaco model then update our query
     modelChangedDebounce: async (sandbox, model) => {
       runQuery(sandbox, model)
     },
-  
-    didUnmount: () => {
-      console.log("Removing plugin");
-    }
   };
   
+  /** Runs the input against the current AST */
   const runQuery = async (sandbox, model: editor.ITextModel) => {
-    const query = localStorage.getItem("playground-tsquery-current-query");
-    if (!query) return;
-  
-    console.log(query)
-  
-    // Cleanup
+    // Empty the results section
     const results = document.getElementById("query-results");
     const resultsMeta = document.getElementById("query-results-meta");
     resultsMeta.textContent = ""
 
+    // Just being safe
     if (!results) return;
     while (results.firstChild) {
       results.removeChild(results.firstChild);
     }
+
+    // NOOP when we don't need to do something
+    const query = localStorage.getItem("playground-tsquery-current-query");
+    if (!query) return;
     
+    // If the model hasn't changed (getVersionId increments on text changes)
+    // then we don't need to get a new copy of the AST to query against
     if (model.getVersionId() !== astVersion) {
       ast = await sandbox.getAST();
       astVersion = model.getVersionId()
     }
   
+    // The API throws when the query is invalid, so 
+    // use a try catch to give an error message
     let queryResults: Node[]
 
     try {
@@ -185,7 +83,7 @@ const pluginCreator = (utils: PluginUtils) => {
       resultsMeta.classList.add("err")
       resultsMeta.textContent = error.message
     }
-    
+    // Show resukts
     if (queryResults) {
       resultsMeta.classList.remove("err")
 
@@ -193,65 +91,62 @@ const pluginCreator = (utils: PluginUtils) => {
       resultsMeta.textContent = `Got ${queryResults.length} ${suffix}`
 
       queryResults.forEach(node => {
+        // Use the utils version of `createASTTree` so that this plugin gets
+        // free upgrades as it becomes good.
         const div = utils.createASTTree(node);
         results.append(div)
       });
-    }
-      
+    }    
   }
   
-  const createGistInputForm = (sandbox) => {
-    const form = document.createElement("form");
+  /** Creates a form with a textbox which runs the query */
+  const createQueryInputForm = (sandbox) => {
+    const form = document.createElement("form")
   
-    const gistHref = document.createElement("input");
-    gistHref.id = "tsquery-input";
-    gistHref.placeholder = `Identifier[name="Animal"]`;
-    gistHref.autocomplete="off" 
-    gistHref.autocapitalize="off" 
-    gistHref.spellcheck=false
+    const textbox = document.createElement("input")
+    textbox.id = "tsquery-input"
+    textbox.placeholder = `Identifier[name="Animal"]`
+    textbox.autocomplete ="off" 
+    textbox.autocapitalize = "off" 
+    textbox.spellcheck = false
     // @ts-ignore
-    gistHref.autocorrect="off" 
+    textbox.autocorrect = "off" 
   
-    const storedGistHref = localStorage.getItem("playground-tsquery-current-query");
-    gistHref.value = storedGistHref;
+    const storedQuery = localStorage.getItem("playground-tsquery-current-query")
+    textbox.value = storedQuery
   
     const updateState = ({ enable }) => {
       if (enable) {
-        gistHref.classList.add("good");
-        // startButton.disabled = false
+        textbox.classList.add("good")
       } else {
-        gistHref.classList.remove("good");
-        // startButton.disabled = true
+        textbox.classList.remove("good")
       }
     };
   
     const textUpdate = e => {
-      const href = e.target.value.trim();
-      localStorage.setItem("playground-tsquery-current-query", href);
+      const href = e.target.value.trim()
+      localStorage.setItem("playground-tsquery-current-query", href)
       
       console.log("text")
       const model = sandbox.editor.getModel()
       runQuery(sandbox, model)
-  
-      // updateState({ enable: isGist(href) })
     };
   
-    
-    gistHref.addEventListener("input", textUpdate)
-  
-    // gistHref.onkeyup = textUpdate;
-    // gistHref.onpaste = textUpdate;
-    // gistHref.onchange = textUpdate;
-    // gistHref.onblur = textUpdate;
-    // gistHref.oninput = textUpdate;
-    form.appendChild(gistHref);
-  
-    updateState({ enable: gistHref.textContent && gistHref.textContent.length });
-    return form;
+    textbox.style.width = "90%"
+    textbox.style.height = "2rem"
+    textbox.addEventListener("input", textUpdate)
+
+    // Suppress the enter key
+    textbox.onkeydown = (evt: KeyboardEvent) => {
+      if (evt.keyCode == 13) return false
+    }
+
+    form.appendChild(textbox)
+    updateState({ enable: textbox.textContent && textbox.textContent.length })
+    return form
   };
 
   return plugin
 }
-
 
 export default pluginCreator;
