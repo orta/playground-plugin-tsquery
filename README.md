@@ -1,6 +1,18 @@
 ## TypeScript Playground Plugin
 
-My new plugin for the TypeScript playground.
+Lets you run TSQuery in realtime
+
+<img src="./images/img.png" />
+
+## Running this plugin
+
+- Open up the TypeScript Playground
+- Go the "Options" in the sidebar
+- Look for "External Plugins"
+- Add "playground-plugin-tsquery"
+- Reload the browser
+
+Then it will show up as a tab in the sidebar.
 
 ## Contributing
 
