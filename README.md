@@ -1,6 +1,6 @@
 ## TypeScript Playground Plugin
 
-Lets you run TSQuery in realtime
+Lets you run [TSQuery](https://github.com/phenomnomnominal/tsquery) in realtime
 
 <img src="./images/img.png" />
 
